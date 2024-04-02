@@ -1,10 +1,10 @@
-# SSL-enabled Postgres DB image
+# Postgres On PipeOps
 
 This repository contains the logic to build SSL-enabled Postgres images.
 
-By default, when you deploy Postgres from the offical Postgres template on Railway, the image that is used is built from this repository!
+By default, when you deploy Postgres from the offical Postgres template on PipeOps, the image that is used is built from this repository!
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/postgres)
+[![Deploy on PipeOps](https://railway.app/button.svg)](https://railway.app/template/postgres)
 
 ### Why though?
 
@@ -21,4 +21,4 @@ By default, the cert expiry is set to 820 days.  You can control this by configu
 
 ### A note about ports
 
-By default, this image is hardcoded to listen on port `5432` regardless of what is set in the `PGPORT` environment variable.  We did this to allow connections to the postgres service over the `RAILWAY_TCP_PROXY_PORT`.  If you need to change this behavior, feel free to build your own image without passing the `--port` parameter to the `CMD` command in the Dockerfile.
+By default, this image is hardcoded to listen on port `5432` regardless of what is set in the `PGPORT` environment variable.If you need to change this behavior, feel free to build your own image without passing the `--port` parameter to the `CMD` command in the Dockerfile.
