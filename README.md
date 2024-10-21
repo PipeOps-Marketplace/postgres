@@ -4,8 +4,6 @@ This repository contains the logic to build SSL-enabled Postgres images.
 
 By default, when you deploy Postgres from the offical Postgres template on PipeOps, the image that is used is built from this repository!
 
-[![Deploy on PipeOps](https://pub-a1fbf367a4cd458487cfa3f29154ac93.r2.dev/Default.png)](#)
-
 ### Why though?
 
 The offical Postgres image in Docker hub does not come with SSL baked in.
