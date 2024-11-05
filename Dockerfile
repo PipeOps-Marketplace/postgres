@@ -1,4 +1,4 @@
-FROM postgres:17
+FROM postgres:14
 
 # Install OpenSSL and sudo
 RUN apt-get update && apt-get install -y openssl sudo
