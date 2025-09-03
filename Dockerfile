@@ -1,13 +1,16 @@
 FROM postgres:14
 
-# Only need openssl; keep official entrypoint intact
-RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+# Only need openssl
+RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+ && rm -rf /var/lib/apt/lists/*
 
-# Where to place certs (writable even when PGDATA PV forbids chown)
-ENV SSL_DIR=/var/run/postgresql/certs
-ENV PGDATA=/var/lib/postgresql/data/pgdata
+# Runs once on cluster init (when PGDATA is empty)
+COPY --chmod=755 init-ssl.sh /docker-entrypoint-initdb.d/10-init-ssl.sh
 
-# Run during first init only
-COPY --chmod=755 10-init-ssl.sh /docker-entrypoint-initdb.d/10-init-ssl.sh
-# do NOT override entrypoint; keep postgres' own
-# ENTRYPOINT/CMD stay from upstream
+# Runs on every start to (re)generate/refresh if missing/expiring, then
+# delegates to the official entrypoint
+COPY --chmod=755 wrapper.sh /usr/local/bin/wrapper.sh
+ENTRYPOINT ["wrapper.sh"]
+
+# same as base image
+CMD ["postgres"]
