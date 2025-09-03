@@ -1,14 +1,13 @@
 FROM postgres:14
 
-# Install OpenSSL and sudo
-RUN apt-get update && apt-get install -y openssl sudo
+# Only need openssl; keep official entrypoint intact
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 
-# Allow the postgres user to execute certain commands as root without a password
-RUN echo "postgres ALL=(root) NOPASSWD: /usr/bin/mkdir, /bin/chown, /usr/bin/openssl" > /etc/sudoers.d/postgres
+# Where to place certs (writable even when PGDATA PV forbids chown)
+ENV SSL_DIR=/var/run/postgresql/certs
+ENV PGDATA=/var/lib/postgresql/data/pgdata
 
-# Add init scripts while setting permissions
-COPY --chmod=755 init-ssl.sh /docker-entrypoint-initdb.d/init-ssl.sh
-COPY --chmod=755 wrapper.sh /usr/local/bin/wrapper.sh
-
-ENTRYPOINT ["wrapper.sh"]
-CMD ["postgres", "--port=5432"]
+# Run during first init only
+COPY --chmod=755 10-init-ssl.sh /docker-entrypoint-initdb.d/10-init-ssl.sh
+# do NOT override entrypoint; keep postgres' own
+# ENTRYPOINT/CMD stay from upstream
