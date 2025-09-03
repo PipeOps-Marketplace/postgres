@@ -24,3 +24,19 @@ if [[ -f "${POSTGRES_CONF_FILE}" ]]; then
     if [[ -f "${CRT}" ]]; then
         if ! openssl x509 -noout -text -in "${CRT}" | grep -q "X509v3 Subject Alternative Name"; then
             echo "| $(date +"%d-%m-%Y %H:%M:%S") Found non-SAN certificate, regenerating..."
+            setup_ssl
+        elif ! openssl x509 -checkend 2592000 -noout -in "${CRT}"; then
+            echo "| $(date +"%d-%m-%Y %H:%M:%S") Certificate expiring soon, regenerating..."
+            setup_ssl
+        fi
+    else
+        # Database initialized but no SSL certs
+        echo "| $(date +"%d-%m-%Y %H:%M:%S") Database initialized without certificate, generating certificates..."
+        setup_ssl
+    fi
+else
+    echo "| $(date +"%d-%m-%Y %H:%M:%S") Database not initialized yet, SSL will be configured during init..."
+fi
+
+# Hand off to the official entrypoint
+exec /usr/local/bin/docker-entrypoint.sh "$@"
