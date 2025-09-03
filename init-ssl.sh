@@ -4,7 +4,7 @@ umask 077
 
 : "${PGDATA:?PGDATA must be set}"
 
-SSL_DIR="${PGDATA}/certs"
+SSL_DIR="/var/lib/postgresql/certs"     # NOT inside $PGDATA
 SERVER_KEY="${SSL_DIR}/server.key"
 SERVER_CRT="${SSL_DIR}/server.crt"
 SERVER_CSR="${SSL_DIR}/server.csr"
@@ -20,14 +20,14 @@ DAYS="${SSL_CERT_DAYS:-820}"
 mkdir -p "${SSL_DIR}"
 chmod 700 "${SSL_DIR}"
 
-# Create a tiny local CA if missing
+# local CA
 if [[ ! -s "${ROOT_KEY}" || ! -s "${ROOT_CRT}" ]]; then
   openssl req -new -x509 -nodes -text -days "${DAYS}" \
     -keyout "${ROOT_KEY}" -out "${ROOT_CRT}" -subj "/CN=root-ca"
   chmod 600 "${ROOT_KEY}" "${ROOT_CRT}"
 fi
 
-# Create server key/cert if missing
+# server cert
 if [[ ! -s "${SERVER_KEY}" || ! -s "${SERVER_CRT}" ]]; then
   openssl req -new -nodes -text -keyout "${SERVER_KEY}" -out "${SERVER_CSR}" \
     -subj "/CN=${CN}"
@@ -49,20 +49,18 @@ EOF
   chmod 600 "${SERVER_CRT}"
 fi
 
-# Idempotently set SSL settings
+# idempotently patch postgresql.conf
 add_conf() {
   local k="$1" v="$2"
   if grep -qE "^\s*${k}\s*=" "${CONF}" 2>/dev/null; then
-    # replace existing
     perl -0777 -pe "s|^\\s*${k}\\s*=.*$|${k} = '${v}'|m" -i "${CONF}"
   else
     printf "%s = '%s'\n" "${k}" "${v}" >> "${CONF}"
   fi
 }
-
 add_conf ssl on
 add_conf ssl_cert_file "${SERVER_CRT}"
 add_conf ssl_key_file  "${SERVER_KEY}"
 add_conf ssl_ca_file   "${ROOT_CRT}"
 
-echo "| $(date +"%d-%m-%Y %H:%M:%S") SSL configured at ${SSL_DIR}"
+echo "| $(date '+%d-%m-%Y %H:%M:%S') SSL configured at ${SSL_DIR}"
