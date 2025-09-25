@@ -1,66 +1,57 @@
-#!/usr/bin/env bash
-set -euo pipefail
-umask 077
+#!/bin/bash
 
-: "${PGDATA:?PGDATA must be set}"
+# exit as soon as any of these commands fail, this prevents starting a database without certificates
+set -e
 
-SSL_DIR="/var/lib/postgresql/certs"     # NOT inside $PGDATA
-SERVER_KEY="${SSL_DIR}/server.key"
-SERVER_CRT="${SSL_DIR}/server.crt"
-SERVER_CSR="${SSL_DIR}/server.csr"
-ROOT_KEY="${SSL_DIR}/root.key"
-ROOT_CRT="${SSL_DIR}/root.crt"
-EXTFILE="${SSL_DIR}/v3.ext"
-CONF="${PGDATA}/postgresql.conf"
+# Set up needed variables
+SSL_DIR="/var/lib/postgresql/data/certs"
 
-CN="${SSL_CN:-localhost}"
-ALT_NAMES="${SSL_ALT_NAMES:-DNS:localhost}"
-DAYS="${SSL_CERT_DAYS:-820}"
+SSL_SERVER_CRT="$SSL_DIR/server.crt"
+SSL_SERVER_KEY="$SSL_DIR/server.key"
+SSL_SERVER_CSR="$SSL_DIR/server.csr"
 
-mkdir -p "${SSL_DIR}"
-chmod 700 "${SSL_DIR}"
+SSL_ROOT_KEY="$SSL_DIR/root.key"
+SSL_ROOT_CRT="$SSL_DIR/root.crt"
 
-# local CA
-if [[ ! -s "${ROOT_KEY}" || ! -s "${ROOT_CRT}" ]]; then
-  openssl req -new -x509 -nodes -text -days "${DAYS}" \
-    -keyout "${ROOT_KEY}" -out "${ROOT_CRT}" -subj "/CN=root-ca"
-  chmod 600 "${ROOT_KEY}" "${ROOT_CRT}"
-fi
+SSL_V3_EXT="$SSL_DIR/v3.ext"
 
-# server cert
-if [[ ! -s "${SERVER_KEY}" || ! -s "${SERVER_CRT}" ]]; then
-  openssl req -new -nodes -text -keyout "${SERVER_KEY}" -out "${SERVER_CSR}" \
-    -subj "/CN=${CN}"
-  chmod 600 "${SERVER_KEY}"
+POSTGRES_CONF_FILE="$PGDATA/postgresql.conf"
 
-  cat > "${EXTFILE}" <<EOF
-basicConstraints = critical, CA:FALSE
-keyUsage = critical, digitalSignature, keyEncipherment
-extendedKeyUsage = serverAuth
-subjectAltName = ${ALT_NAMES}
+# Use sudo to create the directory as root
+sudo mkdir -p "$SSL_DIR"
+
+# Use sudo to change ownership as root
+sudo chown postgres:postgres "$SSL_DIR"
+
+# Generate self-signed 509v3 certificates
+# ref: https://www.postgresql.org/docs/16/ssl-tcp.html#SSL-CERTIFICATE-CREATION
+
+openssl req -new -x509 -days "${SSL_CERT_DAYS:-820}" -nodes -text -out "$SSL_ROOT_CRT" -keyout "$SSL_ROOT_KEY" -subj "/CN=root-ca"
+
+chmod og-rwx "$SSL_ROOT_KEY"
+
+openssl req -new -nodes -text -out "$SSL_SERVER_CSR" -keyout "$SSL_SERVER_KEY" -subj "/CN=localhost"
+
+chown postgres:postgres "$SSL_SERVER_KEY"
+
+chmod og-rwx "$SSL_SERVER_KEY"
+
+cat >| "$SSL_V3_EXT" <<EOF
+[v3_req]
 authorityKeyIdentifier = keyid, issuer
+basicConstraints = critical, CA:TRUE
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
+subjectAltName = DNS:localhost
 EOF
 
-  openssl x509 -req -in "${SERVER_CSR}" -days "${DAYS}" \
-    -extfile "${EXTFILE}" \
-    -CA "${ROOT_CRT}" -CAkey "${ROOT_KEY}" -CAcreateserial \
-    -out "${SERVER_CRT}"
+openssl x509 -req -in "$SSL_SERVER_CSR" -extfile "$SSL_V3_EXT" -extensions v3_req -text -days "${SSL_CERT_DAYS:-820}" -CA "$SSL_ROOT_CRT" -CAkey "$SSL_ROOT_KEY" -CAcreateserial -out "$SSL_SERVER_CRT"
 
-  chmod 600 "${SERVER_CRT}"
-fi
+chown postgres:postgres "$SSL_SERVER_CRT"
 
-# idempotently patch postgresql.conf
-add_conf() {
-  local k="$1" v="$2"
-  if grep -qE "^\s*${k}\s*=" "${CONF}" 2>/dev/null; then
-    perl -0777 -pe "s|^\\s*${k}\\s*=.*$|${k} = '${v}'|m" -i "${CONF}"
-  else
-    printf "%s = '%s'\n" "${k}" "${v}" >> "${CONF}"
-  fi
-}
-add_conf ssl on
-add_conf ssl_cert_file "${SERVER_CRT}"
-add_conf ssl_key_file  "${SERVER_KEY}"
-add_conf ssl_ca_file   "${ROOT_CRT}"
-
-echo "| $(date '+%d-%m-%Y %H:%M:%S') SSL configured at ${SSL_DIR}"
+# PostgreSQL configuration, enable ssl and set paths to certificate files
+cat >> "$POSTGRES_CONF_FILE" <<EOF
+ssl = on
+ssl_cert_file = '$SSL_SERVER_CRT'
+ssl_key_file = '$SSL_SERVER_KEY'
+ssl_ca_file = '$SSL_ROOT_CRT'
+EOF
