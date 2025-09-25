@@ -1,16 +1,14 @@
 FROM postgres:14
 
-# Only need openssl
-RUN apt-get update && apt-get install -y --no-install-recommends openssl \
- && rm -rf /var/lib/apt/lists/*
+# Install OpenSSL and sudo
+RUN apt-get update && apt-get install -y openssl sudo
 
-# Runs once on cluster init (when PGDATA is empty)
-COPY --chmod=755 init-ssl.sh /docker-entrypoint-initdb.d/10-init-ssl.sh
+# Allow the postgres user to execute certain commands as root without a password
+RUN echo "postgres ALL=(root) NOPASSWD: /usr/bin/mkdir, /bin/chown, /usr/bin/openssl" > /etc/sudoers.d/postgres
 
-# Runs on every start to (re)generate/refresh if missing/expiring, then
-# delegates to the official entrypoint
+# Add init scripts while setting permissions
+COPY --chmod=755 init-ssl.sh /docker-entrypoint-initdb.d/init-ssl.sh
 COPY --chmod=755 wrapper.sh /usr/local/bin/wrapper.sh
-ENTRYPOINT ["wrapper.sh"]
 
-# same as base image
-CMD ["postgres"]
+ENTRYPOINT ["wrapper.sh"]
+CMD ["postgres", "--port=5432"]
