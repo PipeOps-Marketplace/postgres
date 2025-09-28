@@ -50,4 +50,4 @@ jobs:
           file: ${{ matrix.dockerfile }}
           platforms: linux/arm64, linux/amd64
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/postgres:${{ steps.extract_version.outputs.version }}
+          tags: ghcr.io/${{ github.repository_owner | lower }}/postgres:${{ steps.extract_version.outputs.version }}
