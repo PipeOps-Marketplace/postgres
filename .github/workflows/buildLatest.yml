@@ -31,10 +31,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Convert repository owner to lowercase
+        id: lowercase
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Build and Publish
         uses: docker/build-push-action@v4
         with:
           file: Dockerfile.latest
           platforms: linux/arm64, linux/amd64
           push: true
-          tags: ghcr.io/${{ github.repository_owner | lower }}/postgres:latest
+          tags: ghcr.io/${{ steps.lowercase.outputs.owner }}/postgres:latest
