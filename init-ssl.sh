@@ -30,18 +30,28 @@ openssl req -new -x509 -days "${SSL_CERT_DAYS:-820}" -nodes -text -out "$SSL_ROO
 
 chmod og-rwx "$SSL_ROOT_KEY"
 
-openssl req -new -nodes -text -out "$SSL_SERVER_CSR" -keyout "$SSL_SERVER_KEY" -subj "/CN=localhost"
+# Use SSL_HOSTNAME env var if set, otherwise default to localhost
+SSL_CN="${SSL_HOSTNAME:-localhost}"
+
+openssl req -new -nodes -text -out "$SSL_SERVER_CSR" -keyout "$SSL_SERVER_KEY" -subj "/CN=$SSL_CN"
 
 chown postgres:postgres "$SSL_SERVER_KEY"
 
 chmod og-rwx "$SSL_SERVER_KEY"
+
+# Build SAN list with localhost always included, plus optional custom hostname
+# This allows connections via localhost, any IP, and optionally a custom hostname
+SAN_LIST="DNS:localhost, IP:0.0.0.0, IP:127.0.0.1"
+if [ -n "$SSL_HOSTNAME" ] && [ "$SSL_HOSTNAME" != "localhost" ]; then
+  SAN_LIST="$SAN_LIST, DNS:$SSL_HOSTNAME"
+fi
 
 cat >| "$SSL_V3_EXT" <<EOF
 [v3_req]
 authorityKeyIdentifier = keyid, issuer
 basicConstraints = critical, CA:TRUE
 keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
-subjectAltName = DNS:localhost
+subjectAltName = $SAN_LIST
 EOF
 
 openssl x509 -req -in "$SSL_SERVER_CSR" -extfile "$SSL_V3_EXT" -extensions v3_req -text -days "${SSL_CERT_DAYS:-820}" -CA "$SSL_ROOT_CRT" -CAkey "$SSL_ROOT_KEY" -CAcreateserial -out "$SSL_SERVER_CRT"
