@@ -18,11 +18,8 @@ SSL_V3_EXT="$SSL_DIR/v3.ext"
 
 POSTGRES_CONF_FILE="$PGDATA/postgresql.conf"
 
-# Use sudo to create the directory as root
-sudo mkdir -p "$SSL_DIR"
-
-# Use sudo to change ownership as root
-sudo chown postgres:postgres "$SSL_DIR"
+# Create the SSL directory (postgres user owns PGDATA, so no sudo needed)
+mkdir -p "$SSL_DIR"
 
 # Generate self-signed 509v3 certificates
 # ref: https://www.postgresql.org/docs/16/ssl-tcp.html#SSL-CERTIFICATE-CREATION
@@ -38,8 +35,6 @@ if [ -z "$SSL_CN" ]; then
 fi
 
 openssl req -new -nodes -text -out "$SSL_SERVER_CSR" -keyout "$SSL_SERVER_KEY" -subj "/CN=$SSL_CN"
-
-chown postgres:postgres "$SSL_SERVER_KEY"
 
 chmod og-rwx "$SSL_SERVER_KEY"
 
@@ -60,8 +55,6 @@ EXTEOF
 
 openssl x509 -req -in "$SSL_SERVER_CSR" -extfile "$SSL_V3_EXT" -extensions v3_req -text -days "${SSL_CERT_DAYS:-820}" -CA "$SSL_ROOT_CRT" -CAkey "$SSL_ROOT_KEY" -CAcreateserial -out "$SSL_SERVER_CRT"
 
-chown postgres:postgres "$SSL_SERVER_CRT"
-
 # PostgreSQL configuration, enable ssl and set paths to certificate files
 cat >> "$POSTGRES_CONF_FILE" <<CONFEOF
 ssl = on
@@ -69,3 +62,5 @@ ssl_cert_file = '$SSL_SERVER_CRT'
 ssl_key_file = '$SSL_SERVER_KEY'
 ssl_ca_file = '$SSL_ROOT_CRT'
 CONFEOF
+
+echo "SSL certificates generated successfully in $SSL_DIR"
