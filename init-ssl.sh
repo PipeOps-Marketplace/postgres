@@ -4,7 +4,8 @@
 set -e
 
 # Set up needed variables
-SSL_DIR="/var/lib/postgresql/data/certs"
+# Use $PGDATA to support custom data directory paths (e.g., /var/lib/postgresql/data/pgdata)
+SSL_DIR="$PGDATA/certs"
 
 SSL_SERVER_CRT="$SSL_DIR/server.crt"
 SSL_SERVER_KEY="$SSL_DIR/server.key"
@@ -49,22 +50,22 @@ if [ -n "$SSL_HOSTNAME" ] && [ "$SSL_HOSTNAME" != "localhost" ]; then
   SAN_LIST="$SAN_LIST, DNS:$SSL_HOSTNAME"
 fi
 
-cat >| "$SSL_V3_EXT" <<EOF
+cat >| "$SSL_V3_EXT" <<EXTEOF
 [v3_req]
 authorityKeyIdentifier = keyid, issuer
 basicConstraints = critical, CA:TRUE
 keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
 subjectAltName = $SAN_LIST
-EOF
+EXTEOF
 
 openssl x509 -req -in "$SSL_SERVER_CSR" -extfile "$SSL_V3_EXT" -extensions v3_req -text -days "${SSL_CERT_DAYS:-820}" -CA "$SSL_ROOT_CRT" -CAkey "$SSL_ROOT_KEY" -CAcreateserial -out "$SSL_SERVER_CRT"
 
 chown postgres:postgres "$SSL_SERVER_CRT"
 
 # PostgreSQL configuration, enable ssl and set paths to certificate files
-cat >> "$POSTGRES_CONF_FILE" <<EOF
+cat >> "$POSTGRES_CONF_FILE" <<CONFEOF
 ssl = on
 ssl_cert_file = '$SSL_SERVER_CRT'
 ssl_key_file = '$SSL_SERVER_KEY'
 ssl_ca_file = '$SSL_ROOT_CRT'
-EOF
+CONFEOF

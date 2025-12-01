@@ -10,7 +10,8 @@ if [ -z "$PGDATA" ]; then
 fi
 
 # Set up needed variables
-SSL_DIR="/var/lib/postgresql/data/certs"
+# Use $PGDATA to support custom data directory paths (e.g., /var/lib/postgresql/data/pgdata)
+SSL_DIR="$PGDATA/certs"
 INIT_SSL_SCRIPT="/docker-entrypoint-initdb.d/init-ssl.sh"
 POSTGRES_CONF_FILE="$PGDATA/postgresql.conf"
 
