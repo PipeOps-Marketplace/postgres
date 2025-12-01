@@ -30,8 +30,11 @@ openssl req -new -x509 -days "${SSL_CERT_DAYS:-820}" -nodes -text -out "$SSL_ROO
 
 chmod og-rwx "$SSL_ROOT_KEY"
 
-# Use SSL_HOSTNAME env var if set, otherwise default to localhost
+# Use SSL_HOSTNAME env var if set and non-empty, otherwise default to localhost
 SSL_CN="${SSL_HOSTNAME:-localhost}"
+if [ -z "$SSL_CN" ]; then
+  SSL_CN="localhost"
+fi
 
 openssl req -new -nodes -text -out "$SSL_SERVER_CSR" -keyout "$SSL_SERVER_KEY" -subj "/CN=$SSL_CN"
 
