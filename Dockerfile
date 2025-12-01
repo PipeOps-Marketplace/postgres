@@ -1,10 +1,8 @@
 FROM postgres:16.10
 
-# Install OpenSSL and sudo
-RUN apt-get update && apt-get install -y openssl sudo
-
-# Allow the postgres user to execute certain commands as root without a password
-RUN echo "postgres ALL=(root) NOPASSWD: /usr/bin/mkdir, /bin/chown, /usr/bin/openssl" > /etc/sudoers.d/postgres
+# Install OpenSSL for SSL certificate generation
+RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Add init scripts while setting permissions
 COPY --chmod=755 init-ssl.sh /docker-entrypoint-initdb.d/init-ssl.sh
