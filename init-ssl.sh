@@ -26,7 +26,8 @@ mkdir -p "$SSL_DIR"
 
 openssl req -new -x509 -days "${SSL_CERT_DAYS:-820}" -nodes -text -out "$SSL_ROOT_CRT" -keyout "$SSL_ROOT_KEY" -subj "/CN=root-ca"
 
-chmod og-rwx "$SSL_ROOT_KEY"
+# Explicit 600 (not only og-rwx): some filesystems/umasks still leave group bits.
+chmod 600 "$SSL_ROOT_KEY"
 
 # Use SSL_HOSTNAME env var if set and non-empty, otherwise default to localhost
 SSL_CN="${SSL_HOSTNAME:-localhost}"
@@ -36,7 +37,7 @@ fi
 
 openssl req -new -nodes -text -out "$SSL_SERVER_CSR" -keyout "$SSL_SERVER_KEY" -subj "/CN=$SSL_CN"
 
-chmod og-rwx "$SSL_SERVER_KEY"
+chmod 600 "$SSL_SERVER_KEY"
 
 # Build SAN list with localhost always included, plus optional custom hostname
 # This allows connections via localhost, any IP, and optionally a custom hostname
@@ -62,5 +63,12 @@ ssl_cert_file = '$SSL_SERVER_CRT'
 ssl_key_file = '$SSL_SERVER_KEY'
 ssl_ca_file = '$SSL_ROOT_CRT'
 CONFEOF
+
+# Final pass: any residual .key under SSL_DIR must satisfy Postgres rules.
+chmod 700 "$SSL_DIR" 2>/dev/null || true
+for _k in "$SSL_DIR"/*.key; do
+  [ -f "$_k" ] || continue
+  chmod 600 "$_k" 2>/dev/null || true
+done
 
 echo "SSL certificates generated successfully in $SSL_DIR"
